@@ -7,12 +7,12 @@
 
 #include <algorithm>
 #include <cctype>
+//#include <cstdarg>
+#include <cstdio>
 #include <functional>
 #include <memory>
 #include <regex>
-#include <stdarg.h>
-#include <stdio.h>
-#include <string>
+//#include <string>
 #include <vector>
 
 #ifdef _WIN32
@@ -26,12 +26,12 @@ namespace XML3
 #define XML3_VERSION 0x1
 #define XML3_VERSION_REVISION_DATE "01-06-2015"
 
-    typedef struct
+    struct XML_VERSION_INFO
     {
         int VersionHigh;
         int VersionLow;
         char RDate[20];
-    } XML_VERSION_INFO;
+    };
 
     enum class XML_ERROR
     {
@@ -109,11 +109,11 @@ namespace XML3
         mutable std::wstring wxx;
 
     public:
-        xstring() : string() {}
+        xstring() = default;
         explicit xstring(const char* t) : string(t) {}
         explicit xstring(const string& t) : string(t) {}
-        explicit xstring(const xstring& t) : string(t) {}
-        explicit xstring(xstring&& t) noexcept : string(std::forward<xstring>(t)) {}
+        xstring(const xstring& t) : string(t) {}
+        xstring(xstring&& t) noexcept : string(std::forward<xstring>(t)) {}
         xstring& operator=(const char* t)
         {
             string::operator=(t);
@@ -139,9 +139,12 @@ namespace XML3
 
             int len = _vscprintf(f, args) // _vscprintf doesn't count
                       + 100;              // terminating '\0'
-            if (len < 8192) len = 8192;
+            if (len < 8192)
+            {
+                len = 8192;
+            }
 
-            char* b = new char[len];
+            auto* b = new char[len];
 #ifdef _MSC_VER
             vsprintf_s(b, len, f, args);
 #else
@@ -159,9 +162,12 @@ namespace XML3
 
             int len = _vscwprintf(f, args) // _vscprintf doesn't count
                       + 100;               // terminating '\0'
-            if (len < 8192) len = 8192;
+            if (len < 8192)
+            {
+                len = 8192;
+            }
 
-            wchar_t* b = new wchar_t[len];
+            auto* b = new wchar_t[len];
             vswprintf_s(b, len, f, args);
             operator=(b);
             delete[] b;
@@ -179,7 +185,7 @@ namespace XML3
         }
         const wchar_t* w_str() const
         {
-            wxx.assign(XMLU(c_str()).wu.c_str());
+            wxx.assign(XMLU(c_str()).wu);
             return wxx.c_str();
         }
 #endif
@@ -190,17 +196,18 @@ namespace XML3
     class XMLId
     {
     private:
-        unsigned long long ts = 0;
+        uint64_t ts = 0;
 
     public:
         XMLId();
-        explicit XMLId(unsigned long long a);
-        XMLId(const XMLId& a);
-        void operator=(unsigned long long a);
+        explicit XMLId(uint64_t a) : ts{a} {};
+        XMLId(const XMLId& d) = default;
+        XMLId(XMLId&& d) = default;
+        XMLId& operator=(const XMLId&) = default;
+        XMLId& operator=(XMLId&&) = default;
 
         bool operator==(const XMLId& a) const;
-        void operator=(const XMLId& a);
-        unsigned long long g() const;
+        uint64_t g() const;
     };
 
     class XMLContent
@@ -222,7 +229,7 @@ namespace XML3
         bool operator==(const XMLContent& t) const;
         explicit operator const string&() const;
 
-        static std::string XMLContent::trim(const std::string& str, const std::string& whitespace = " \r\n\t");
+        static std::string trim(const std::string& str, const std::string& whitespace = " \r\n\t");
 
         // Sets
         const string& SetFormattedValue(const char* fmt, ...);
@@ -241,8 +248,8 @@ namespace XML3
 
         const string& SetValueInt(int v) { return SetFormattedValue<int>("%i", v); }
         const string& SetValueUInt(unsigned int v) { return SetFormattedValue<unsigned int>("%u", v); }
-        const string& SetValueLongLong(long long v) { return SetFormattedValue<long long>("%lli", v); }
-        const string& SetValueULongLong(unsigned long long v) { return SetFormattedValue<long long>("%llu", v); }
+        const string& SetValueLongLong(int64_t v) { return SetFormattedValue<int64_t>("%lli", v); }
+        const string& SetValueULongLong(uint64_t v) { return SetFormattedValue<int64_t>("%llu", v); }
 
         virtual XMLContent& operator=(const char* s);
         virtual XMLContent& operator=(const string& s);
@@ -269,14 +276,11 @@ namespace XML3
 
         int GetValueInt(int def = 0) const { return GetFormattedValue<int>("%i", def); }
         unsigned int GetValueUInt(unsigned int def = 0) const { return GetFormattedValue<unsigned int>("%u", def); }
-        long long GetValueLongLong(long long def = 0) const { return GetFormattedValue<long long>("%lli", def); }
-        unsigned long long GetValueULongLong(unsigned long long def = 0) const
-        {
-            return GetFormattedValue<unsigned long long>("%llu", def);
-        }
+        int64_t GetValueLongLong(int64_t def = 0) const { return GetFormattedValue<int64_t>("%lli", def); }
+        uint64_t GetValueULongLong(uint64_t def = 0) const { return GetFormattedValue<uint64_t>("%llu", def); }
 
         const string& GetValue() const;
-        string GetValueDefault(const char* def) const;
+        string GetValueDefault(const char* s) const;
         size_t GetEP() const;
 
         // Serialization
@@ -302,8 +306,8 @@ namespace XML3
         void Clear() override;
         XMLVariable& operator=(const char* s) override;
         XMLVariable& operator=(const string& s) override;
-        XMLVariable& operator=(unsigned long long j);
-        XMLVariable& operator=(signed long long j);
+        XMLVariable& operator=(uint64_t j);
+        XMLVariable& operator=(int64_t j);
 
         // Compare
         bool operator<(const XMLVariable& x) const;
@@ -319,7 +323,7 @@ namespace XML3
         string Serialize(bool NoEnc = false) const override;
     };
 
-    typedef XMLVariable XMLAttribute;
+    using XMLAttribute = XMLVariable;
 
     class XMLCData : public XMLContent
     {
@@ -387,7 +391,7 @@ namespace XML3
         vector<shared_ptr<XMLContent>> contents;
         vector<shared_ptr<XMLComment>> comments;
         vector<shared_ptr<XMLCData>> cdatas;
-        unsigned long long param = 0;
+        uint64_t param = 0;
         XMLId parent{0};
         XMLId id;
 
@@ -395,9 +399,9 @@ namespace XML3
 
     public:
         XMLElement();
-        explicit XMLElement(const char*);
-        XMLElement(const XMLElement&);
-        XMLElement(XMLElement&&) noexcept;
+        explicit XMLElement(const char* t);
+        XMLElement(const XMLElement& from);
+        XMLElement(XMLElement&& from) noexcept;
 
         XMLElement Mirror() const;
 
@@ -418,7 +422,7 @@ namespace XML3
         // Operators
         bool operator==(const XMLElement& t) const;
         bool operator<(const XMLElement& x) const;
-        XMLElement& operator=(const char*);
+        XMLElement& operator=(const char* /*xx*/);
         XMLElement& operator=(const XMLElement& t);
 
         // Gets
@@ -428,13 +432,13 @@ namespace XML3
 
         const string& v(size_t idx) const;
         const string& v(const char* nn);
-        string vd(const char* nn, const char* def = 0);
-        string vd(const char* nn, const char* def = 0) const;
+        string vd(const char* nn, const char* def = nullptr);
+        string vd(const char* nn, const char* def = nullptr) const;
 
         string Content() const;
         string GetContent() const;
         XMLVariable& vv(const char* nn);
-        unsigned long long GetElementParam() const;
+        uint64_t GetElementParam() const;
         const string& GetElementName() const;
         void GetAllChildren(vector<shared_ptr<XMLElement>>& ch) const;
         shared_ptr<XMLElement> GetParent(shared_ptr<XMLElement> r) const;
@@ -444,9 +448,11 @@ namespace XML3
         // Sets
         void SetElementName(const char* x);
         void SetElementName(const wchar_t* x);
-        void SetElementParam(unsigned long long p);
-        void SortElements(std::function<bool(const shared_ptr<XMLElement>& e1, const shared_ptr<XMLElement>& e2)>);
-        void SortVariables(std::function<bool(const shared_ptr<XMLVariable>& e1, const shared_ptr<XMLVariable>& e2)>);
+        void SetElementParam(uint64_t p);
+        void SortElements(
+            std::function<bool(const shared_ptr<XMLElement>& e1, const shared_ptr<XMLElement>& e2)> /*f*/);
+        void SortVariables(
+            std::function<bool(const shared_ptr<XMLVariable>& e1, const shared_ptr<XMLVariable>& e2)> /*f*/);
         XML_ERROR MoveElement(size_t i, size_t y);
         XMLVariable& SetValue(const char* vn, const char* vp);
         XMLContent& SetContent(const char* vp);
@@ -465,7 +471,7 @@ namespace XML3
         void AddElements(const std::initializer_list<string>& s);
         void SetVariables(const std::initializer_list<string>& s);
         XMLVariable& AddVariable(const char* vn = "n", const char* vv = "v", size_t p = -1);
-        XMLVariable& AddVariable(const XMLVariable& v, size_t p = -1);
+        XMLVariable& AddVariable(const XMLVariable& vv, size_t p = -1);
         XMLContent& AddContent(const char* pv, size_t ep, size_t p = -1);
         XMLComment& AddComment(const char* pv, size_t ep, size_t p = -1);
         XMLCData& AddCData(const char* pv, size_t ep, size_t p = -1);
@@ -475,7 +481,7 @@ namespace XML3
         size_t RemoveElement(size_t i);
         size_t RemoveElement(XMLElement* p);
 
-        shared_ptr<XMLElement> RemoveElementAndKeep(size_t i) throw(XML_ERROR);
+        shared_ptr<XMLElement> RemoveElementAndKeep(size_t i) noexcept(false);
 
         void clear();
 
@@ -484,7 +490,7 @@ namespace XML3
 
         size_t RemoveVariable(size_t i);
 
-        shared_ptr<XMLVariable> RemoveVariableAndKeep(size_t i) throw(XML_ERROR);
+        shared_ptr<XMLVariable> RemoveVariableAndKeep(size_t i) noexcept(false);
 
         static string EorE(const string& s, bool N);
         string Serialize(bool NoEnc = false, size_t deep = 0) const;
@@ -509,13 +515,15 @@ namespace XML3
         explicit XML(const wchar_t* file);
         XML(const char* mem, size_t l);
 
-        // Copy/Move
-        XML(const XML&);
-        void operator=(const XML&);
-        XML(XML&&) noexcept;
-        void operator=(XML&&) noexcept;
+        ~XML() = default;
 
-        void operator=(const char* d);
+        // Copy/Move
+        XML(const XML& /*x*/);
+        XML& operator=(const XML& /*x*/);
+        XML(XML&& /*x*/) noexcept;
+        XML& operator=(XML&& /*x*/) noexcept;
+
+        XML& operator=(const char* d);
 
         // Savers
         size_t SaveFP(FILE* fp) const;
@@ -551,29 +559,34 @@ namespace XML3
     class TICKCOUNT
     {
     public:
-        unsigned long long var;
-        unsigned long long a;
-        unsigned long long freq = 0;
+        LARGE_INTEGER var;
+        LARGE_INTEGER a;
+        LARGE_INTEGER freq{0};
         string fn;
+
+        TICKCOUNT(const TICKCOUNT&) = delete;
+        TICKCOUNT& operator=(const TICKCOUNT&) = delete;
+        TICKCOUNT(TICKCOUNT&&) = delete;
+
         explicit TICKCOUNT(const char* ffn)
         {
-            var = 0;
-            a = 0;
+            var.QuadPart = 0;
+            a.QuadPart = 0;
             fn = ffn;
-            QueryPerformanceFrequency((LARGE_INTEGER*)&freq);
-            QueryPerformanceCounter((LARGE_INTEGER*)&a);
+            QueryPerformanceFrequency(&freq);
+            QueryPerformanceCounter(&a);
         }
         ~TICKCOUNT() { r(); }
 
         void r()
         {
-            unsigned long long b = 0;
-            QueryPerformanceCounter((LARGE_INTEGER*)&b);
-            var = b - a;
-            var *= 1000;
-            var /= freq;
+            LARGE_INTEGER b{0};
+            QueryPerformanceCounter(&b);
+            var.QuadPart = b.QuadPart - a.QuadPart;
+            var.QuadPart *= 1000;
+            var.QuadPart /= freq.QuadPart;
             char f[1000];
-            sprintf_s(f, 1000, "%03llu %s\r\n", var, fn.c_str());
+            sprintf_s(f, 1000, "%03llu %s\r\n", var.QuadPart, fn.c_str());
             OutputDebugStringA(f);
         }
     };
@@ -583,17 +596,19 @@ namespace XML3
 
 #endif
 
-    static unsigned long long jtic = 1;
-    inline unsigned long long Tick() { return ++jtic; }
+    static uint64_t jtic = 1;
+    inline uint64_t Tick() { return ++jtic; }
 
     inline string Char2Base64(const char* Z, size_t s)
     {
         DWORD da = 0;
-        CryptBinaryToString((const BYTE*)Z, (DWORD)s, CRYPT_STRING_BASE64, 0, &da);
+        CryptBinaryToString(reinterpret_cast<const BYTE*>(Z), static_cast<DWORD>(s), CRYPT_STRING_BASE64, nullptr, &da);
         da += 100;
-        unique_ptr<char> out(new char[da]);
-        CryptBinaryToStringA((const BYTE*)Z, (DWORD)s, CRYPT_STRING_BASE64, out.get(), &da);
-        return out.get();
+
+        std::string out_string(da, '\0');
+        CryptBinaryToString(
+            reinterpret_cast<const BYTE*>(Z), static_cast<DWORD>(s), CRYPT_STRING_BASE64, out_string.data(), &da);
+        return out_string;
     }
 
     inline BXML::BXML(size_t s)
@@ -604,8 +619,14 @@ namespace XML3
 
     inline bool BXML::operator==(const BXML& b2)
     {
-        if (size() != b2.size()) return false;
-        if (memcmp(p(), b2.p(), size()) != 0) return false;
+        if (size() != b2.size())
+        {
+            return false;
+        }
+        if (memcmp(p(), b2.p(), size()) != 0)
+        {
+            return false;
+        }
         return true;
     }
 
@@ -625,7 +646,10 @@ namespace XML3
 
     inline void BXML::clear()
     {
-        if (d.size() == 0) return;
+        if (d.empty())
+        {
+            return;
+        }
         memset(p(), 0, d.size());
     }
 
@@ -633,7 +657,10 @@ namespace XML3
 
     inline void BXML::Ensure(size_t news)
     {
-        if (news > d.size()) Resize(news);
+        if (news > d.size())
+        {
+            Resize(news);
+        }
     }
 
     inline void BXML::Resize(size_t news) { d.resize(news); }
@@ -643,16 +670,23 @@ namespace XML3
     inline void Base64ToChar(const char* Z, size_t s, BXML& out)
     {
         DWORD dw = 0;
-        CryptStringToBinaryA(Z, (DWORD)s, CRYPT_STRING_BASE64, 0, &dw, 0, 0);
+        CryptStringToBinaryA(Z, static_cast<DWORD>(s), CRYPT_STRING_BASE64, nullptr, &dw, nullptr, nullptr);
         out.Resize(dw);
-        CryptStringToBinaryA(Z, (DWORD)s, CRYPT_STRING_BASE64, (BYTE*)out.p(), &dw, 0, 0);
+        CryptStringToBinaryA(
+            Z, static_cast<DWORD>(s), CRYPT_STRING_BASE64, reinterpret_cast<BYTE*>(out.p()), &dw, nullptr, nullptr);
     }
 
     inline string Decode(const char* src)
     {
         string trg;
-        if (!src) return trg;
-        if (strchr(src, '&') == 0) return src;
+        if (src == nullptr)
+        {
+            return trg;
+        }
+        if (strchr(src, '&') == nullptr)
+        {
+            return src;
+        }
         // vector<string> t =
         // {"&amp;","&","&apos;","'","&quot;","\"","&gt;",">","&lt;","<"};
         vector<string> t = {"&amp;", "&", "&quot;", "\"", "&gt;", ">", "&lt;", "<"};
@@ -672,7 +706,10 @@ namespace XML3
 
         int len = _vscprintf(f, args) // _vscprintf doesn't count
                   + 100;              // terminating '\0'
-        if (len < 8192) len = 8192;
+        if (len < 8192)
+        {
+            len = 8192;
+        }
 
         std::unique_ptr<char> b(new char[len]);
 #ifdef _MSC_VER
@@ -689,21 +726,29 @@ namespace XML3
     {
         string s = src;
         if (m == 0 || m == 2)
+        {
             s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](auto c) {
-                        return !std::isspace(static_cast<unsigned char>(c));
+                        return !static_cast<bool>(std::isspace(static_cast<unsigned char>(c)));
                     }));
+        }
         if (m == 1 || m == 2)
-            s.erase(
-                std::find_if(s.rbegin(), s.rend(), [](auto c) { return !std::isspace(static_cast<unsigned char>(c)); })
-                    .base(),
-                s.end());
+        {
+            s.erase(std::find_if(s.rbegin(),
+                                 s.rend(),
+                                 [](auto c) { return !static_cast<bool>(std::isspace(static_cast<unsigned char>(c))); })
+                        .base(),
+                    s.end());
+        }
         return s;
     }
 
     inline string Encode(const char* src)
     {
         string trg;
-        if (!src) return trg;
+        if (src == nullptr)
+        {
+            return trg;
+        }
         size_t Y = strlen(src);
         for (size_t i = 0; i < Y; i++)
         {
@@ -739,7 +784,10 @@ namespace XML3
 
     inline void strreplace(std::string& str, const std::string& from, const std::string& to)
     {
-        if (from.empty()) return;
+        if (from.empty())
+        {
+            return;
+        }
         size_t start_pos = 0;
         while ((start_pos = str.find(from, start_pos)) != std::string::npos)
         {
@@ -775,12 +823,18 @@ namespace XML3
         for (size_t j = 0; j < ts; j++)
         {
             char c = txt[j];
-            if (c == ' ' || c == '\r' || c == '\n' || c == '\t') continue;
+            if (c == ' ' || c == '\r' || c == '\n' || c == '\t')
+            {
+                continue;
+            }
 
             if (c == '{')
             {
                 // Begin XMLElement
-                if (LastData.empty()) LastData = "json";
+                if (LastData.empty())
+                {
+                    LastData = "json";
+                }
 
                 root = &root->AddElement(LastData.c_str());
 
@@ -790,9 +844,11 @@ namespace XML3
             {
                 // End XMLElement
                 XMLElement* nr = root->GetParent(sroot);
-                if (!nr) // End JSon parsing
+                if (nr == nullptr)
+                { // End JSon parsing
                     break;
-                unsigned long long lp = root->GetElementParam();
+                }
+                uint64_t lp = root->GetElementParam();
                 if (lp != 1)
                 {
                     root = nr;
@@ -809,8 +865,10 @@ namespace XML3
             {
                 // End array
                 XMLElement* nr = root->GetParent(sroot);
-                if (!nr) // End JSon parsing
+                if (nr == nullptr)
+                { // End JSon parsing
                     break;
+                }
                 root = nr;
                 continue;
             }
@@ -840,15 +898,24 @@ namespace XML3
                 for (size_t jj = j + 1; jj < ts; jj++)
                 {
                     char cc = txt[jj];
-                    if (cc == ' ' || cc == '\r' || cc == '\n' || cc == '\t') continue;
+                    if (cc == ' ' || cc == '\r' || cc == '\n' || cc == '\t')
+                    {
+                        continue;
+                    }
 
                     if (cc == '\"')
                     {
                         InQ = !InQ;
-                        if (InQ == false) FinishedQ = true;
+                        if (InQ == false)
+                        {
+                            FinishedQ = true;
+                        }
                         continue;
                     }
-                    if (InQ) continue;
+                    if (InQ)
+                    {
+                        continue;
+                    }
 
                     if (cc == '[')
                     {
@@ -861,7 +928,10 @@ namespace XML3
                     {
                         // Element
                         XMLElement& bb = root->AddElement(LastData.c_str());
-                        if (NextBraceArray) bb.SetElementParam(1);
+                        if (NextBraceArray)
+                        {
+                            bb.SetElementParam(1);
+                        }
                         NextBraceArray = false;
                         root = &bb;
                         KeyTypeParse = 0;
@@ -879,15 +949,24 @@ namespace XML3
                         for (size_t k = j + 1; k < jj; k++)
                         {
                             char ccc = txt[k];
-                            if (ccc == ' ' || ccc == '\r' || ccc == '\n' || ccc == '\t') continue;
-                            if (ccc == '\"') continue;
+                            if (ccc == ' ' || ccc == '\r' || ccc == '\n' || ccc == '\t')
+                            {
+                                continue;
+                            }
+                            if (ccc == '\"')
+                            {
+                                continue;
+                            }
                             vval.append(txt + k, 1);
                         }
                         cv.SetValue(vval);
 
                         KeyTypeParse = 0;
                         j = jj;
-                        if (cc != ',') j = jj - 1;
+                        if (cc != ',')
+                        {
+                            j = jj - 1;
+                        }
                         // FinishedQ = false;
 
                         root->AddVariable(cv);
@@ -910,7 +989,7 @@ namespace XML3
         size_t si = strlen(x) * 4 + 1000;
         unique_ptr<wchar_t> ws(new wchar_t[si]);
 #ifdef _WIN32
-        MultiByteToWideChar(CP_UTF8, 0, tu.c_str(), -1, ws.get(), (int)si);
+        MultiByteToWideChar(CP_UTF8, 0, tu.c_str(), -1, ws.get(), static_cast<int>(si));
 #endif
         wu = ws.get();
     }
@@ -921,7 +1000,7 @@ namespace XML3
         size_t si = wcslen(x) * 4 + 1000;
         unique_ptr<char> ws(new char[si]);
 #ifdef _WIN32
-        WideCharToMultiByte(CP_UTF8, 0, wu.c_str(), -1, ws.get(), (int)si, 0, 0);
+        WideCharToMultiByte(CP_UTF8, 0, wu.c_str(), -1, ws.get(), static_cast<int>(si), nullptr, nullptr);
 #endif
         tu = ws.get();
     }
@@ -932,34 +1011,32 @@ namespace XML3
     inline XMLU::operator const char*() const { return tu.c_str(); }
 
     inline XMLId::XMLId() { ts = Tick(); }
-    inline XMLId::XMLId(unsigned long long a) { operator=(a); }
-    inline XMLId::XMLId(const XMLId& a) { operator=(a); }
-    inline void XMLId::operator=(unsigned long long a) { ts = a; }
 
-    inline bool XMLId::operator==(const XMLId& a) const
-    {
-        if (ts == a.ts) return true;
-        return false;
-    }
-    inline void XMLId::operator=(const XMLId& a) { ts = a.g(); }
-    inline unsigned long long XMLId::g() const { return ts; }
+    inline bool XMLId::operator==(const XMLId& a) const { return ts == a.ts; }
+    inline uint64_t XMLId::g() const { return ts; }
 
     inline XMLContent::XMLContent()
     {
-        ep = (size_t)-1;
+        ep = static_cast<size_t>(-1);
         v.clear();
     }
     inline XMLContent::XMLContent(size_t ElementPosition, const char* ht)
     {
         ep = ElementPosition;
         v.clear();
-        if (ht) v = ht;
+        if (ht != nullptr)
+        {
+            v = ht;
+        }
     }
     inline XMLContent::XMLContent(size_t ElementPosition, const wchar_t* ht)
     {
         ep = ElementPosition;
         v.clear();
-        if (ht) v = string{XMLU(ht).bc()};
+        if (ht != nullptr)
+        {
+            v = string{XMLU(ht).bc()};
+        }
     }
 
     inline size_t XMLContent::MemoryUsage() const
@@ -973,11 +1050,7 @@ namespace XML3
     }
 
     // Operators
-    inline bool XMLContent::operator==(const XMLContent& t) const
-    {
-        if (v != t.v) return false;
-        return true;
-    }
+    inline bool XMLContent::operator==(const XMLContent& t) const { return v == t.v; }
 
     inline XMLContent::operator const string&() const { return v; }
 
@@ -999,10 +1072,14 @@ namespace XML3
 
     inline XMLContent& XMLContent::operator=(const char* s)
     {
-        if (s)
+        if (s != nullptr)
+        {
             v = s;
+        }
         else
+        {
             v.clear();
+        }
         return *this;
     }
 
@@ -1020,7 +1097,7 @@ namespace XML3
 
     inline void XMLContent::SetValue(const char* VV)
     {
-        if (!VV)
+        if (VV == nullptr)
         {
             v.clear();
             return;
@@ -1049,7 +1126,10 @@ namespace XML3
 
     inline string XMLContent::GetValueDefault(const char* s) const
     {
-        if (v.length()) return v;
+        if (v.length() != 0u)
+        {
+            return v;
+        }
         return s;
     }
 
@@ -1058,7 +1138,10 @@ namespace XML3
     inline std::string XMLContent::trim(const std::string& str, const std::string& whitespace)
     {
         const auto strBegin = str.find_first_not_of(whitespace);
-        if (strBegin == std::string::npos) return ""; // no content
+        if (strBegin == std::string::npos)
+        {
+            return ""; // no content
+        }
 
         const auto strEnd = str.find_last_not_of(whitespace);
         const auto strRange = strEnd - strBegin + 1;
@@ -1071,15 +1154,21 @@ namespace XML3
     inline string XMLContent::Serialize(bool NoEnc) const
     {
         // Strip any
-        if (NoEnc) return Format("%s", v.c_str());
+        if (NoEnc)
+        {
+            return Format("%s", v.c_str());
+        }
         return Format("%s", Encode(v.c_str()).c_str());
     }
 
-    inline XMLVariable::XMLVariable() : XMLContent((size_t)-1, "") { n = "v"; }
+    inline XMLVariable::XMLVariable() : XMLContent(static_cast<size_t>(-1), "") { n = "v"; }
 
-    inline XMLVariable::XMLVariable(const char* nn, const char* vv, bool Temp) : XMLContent((size_t)-1, vv)
+    inline XMLVariable::XMLVariable(const char* nn, const char* vv, bool Temp) : XMLContent(static_cast<size_t>(-1), vv)
     {
-        if (nn) n = nn;
+        if (nn != nullptr)
+        {
+            n = nn;
+        }
         tmp = Temp;
     }
 
@@ -1111,12 +1200,41 @@ namespace XML3
                             }
                     return *this;
                     }
-                    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     */
     inline const string& XMLVariable::SetName(const char* VN)
     {
-        if (!VN) return n;
+        if (VN == nullptr)
+        {
+            return n;
+        }
         n = VN;
         n.erase(n.find_last_not_of(" \n\r\t") + 1);
         return n;
@@ -1137,10 +1255,14 @@ namespace XML3
 
     inline XMLVariable& XMLVariable::operator=(const char* s)
     {
-        if (s)
+        if (s != nullptr)
+        {
             v = s;
+        }
         else
+        {
             v.clear();
+        }
         return *this;
     }
 
@@ -1150,14 +1272,14 @@ namespace XML3
         return *this;
     }
 
-    inline XMLVariable& XMLVariable::operator=(unsigned long long j)
+    inline XMLVariable& XMLVariable::operator=(uint64_t j)
     {
         char jh[100] = {0};
         sprintf_s(jh, 100, "%llu", j);
         v = jh;
         return *this;
     }
-    inline XMLVariable& XMLVariable::operator=(signed long long j)
+    inline XMLVariable& XMLVariable::operator=(int64_t j)
     {
         char jh[100] = {0};
         sprintf_s(jh, 100, "%lli", j);
@@ -1166,24 +1288,22 @@ namespace XML3
     }
 
     // Compare
-    inline bool XMLVariable::operator<(const XMLVariable& x) const
-    {
-        if (n > x.n) return false;
-        return true;
-    }
+    inline bool XMLVariable::operator<(const XMLVariable& x) const { return n <= x.n; }
 
     inline bool XMLVariable::operator==(const XMLVariable& x) const
     {
-        if (strcmp(n.c_str(), x.n.c_str()) != 0) return false;
-        if (strcmp(v.c_str(), x.v.c_str()) != 0) return false;
+        if (strcmp(n.c_str(), x.n.c_str()) != 0)
+        {
+            return false;
+        }
+        if (strcmp(v.c_str(), x.v.c_str()) != 0)
+        {
+            return false;
+        }
         return true;
     }
 
-    inline bool XMLVariable::operator==(const char* x) const
-    {
-        if (strcmp(v.c_str(), x) != 0) return false;
-        return true;
-    }
+    inline bool XMLVariable::operator==(const char* x) const { return strcmp(v.c_str(), x) == 0; }
 
     // Gets
     inline const string& XMLVariable::GetName() const { return n; }
@@ -1205,7 +1325,10 @@ namespace XML3
     // Serialization
     inline string XMLVariable::Serialize(bool NoEnc) const
     {
-        if (NoEnc) return Format("%s=\"%s\"", n.c_str(), v.c_str());
+        if (NoEnc)
+        {
+            return Format("%s=\"%s\"", n.c_str(), v.c_str());
+        }
         return Format("%s=\"%s\"", Encode(n.c_str()).c_str(), Encode(v.c_str()).c_str());
     }
 
@@ -1214,26 +1337,26 @@ namespace XML3
     inline XMLCData::XMLCData(size_t ElementPosition, const wchar_t* ht) : XMLContent(ElementPosition, ht) {}
 
     // Serialization
-    inline string XMLCData::Serialize(bool) const { return Format("<![CDATA[%s]]>", v.c_str()); }
+    inline string XMLCData::Serialize(bool /*NoEnc*/) const { return Format("<![CDATA[%s]]>", v.c_str()); }
 
     inline XMLDocType::XMLDocType(const char* ht) : XMLContent(0, ht) {}
 
     inline XMLDocType::XMLDocType(const wchar_t* ht) : XMLContent(0, ht) {}
 
     // Serialization
-    inline string XMLDocType::Serialize(bool) const { return Format("<!DOCTYPE %s>", v.c_str()); }
+    inline string XMLDocType::Serialize(bool /*NoEnc*/) const { return Format("<!DOCTYPE %s>", v.c_str()); }
 
     inline XMLComment::XMLComment(size_t ElementPosition, const char* ht) : XMLContent(ElementPosition, ht) {}
 
     inline XMLComment::XMLComment(size_t ElementPosition, const wchar_t* ht) : XMLContent(ElementPosition, ht) {}
 
     // Serialization
-    inline string XMLComment::Serialize(bool) const { return Format("<!--%s-->", v.c_str()); }
+    inline string XMLComment::Serialize(bool /*NoEnc*/) const { return Format("<!--%s-->", v.c_str()); }
 
     // Serialization
     inline string XMLHeader::Serialize() const
     {
-        return Format("<?xml version=\"%s\" encoding=\"%s\" standalone=\"%s\" ?>",
+        return Format(R"(<?xml version="%s" encoding="%s" standalone="%s" ?>)",
                       version.GetValue().c_str(),
                       encoding.GetValue().c_str(),
                       standalone.GetValue().c_str());
@@ -1261,48 +1384,84 @@ namespace XML3
     // Operators
     inline bool XMLElement::operator==(const XMLElement& t) const
     {
-        if (param != t.param) return false;
-        if (el != t.el) return false;
+        if (param != t.param)
+        {
+            return false;
+        }
+        if (el != t.el)
+        {
+            return false;
+        }
 
-        if (children.size() != t.children.size()) return false;
-        if (variables.size() != t.variables.size()) return false;
-        if (contents.size() != t.contents.size()) return false;
-        if (cdatas.size() != t.cdatas.size()) return false;
-        if (comments.size() != t.comments.size()) return false;
+        if (children.size() != t.children.size())
+        {
+            return false;
+        }
+        if (variables.size() != t.variables.size())
+        {
+            return false;
+        }
+        if (contents.size() != t.contents.size())
+        {
+            return false;
+        }
+        if (cdatas.size() != t.cdatas.size())
+        {
+            return false;
+        }
+        if (comments.size() != t.comments.size())
+        {
+            return false;
+        }
 
         for (size_t i = 0; i < children.size(); i++)
         {
             auto a = children[i];
             auto b = t.children[i];
-            if (!(a == b)) return false;
+            if (!(a == b))
+            {
+                return false;
+            }
         }
 
         for (size_t i = 0; i < variables.size(); i++)
         {
             auto a = variables[i];
             auto b = t.variables[i];
-            if (!(a == b)) return false;
+            if (!(a == b))
+            {
+                return false;
+            }
         }
 
         for (size_t i = 0; i < contents.size(); i++)
         {
             auto a = contents[i];
             auto b = t.contents[i];
-            if (!(a == b)) return false;
+            if (!(a == b))
+            {
+                return false;
+            }
         }
 
         for (size_t i = 0; i < comments.size(); i++)
         {
             auto a = comments[i];
             auto b = t.comments[i];
-            if (!(a == b)) return false;
+            if (!(a == b))
+            {
+                return false;
+            }
         }
 
         for (size_t i = 0; i < cdatas.size(); i++)
         {
             auto a = cdatas[i];
             auto b = t.cdatas[i];
-            if (!(a == b)) return false;
+            if (!(a == b))
+            {
+                return false;
+            }
         }
 
         return true;
@@ -1311,8 +1470,7 @@ namespace XML3
     inline bool XMLElement::operator<(const XMLElement& x) const
     {
         // Compare names
-        if (el > x.el) return false;
-        return true;
+        return el <= x.el;
     }
 
     inline XMLElement& XMLElement ::operator=(const XMLElement& t)
@@ -1323,7 +1481,7 @@ namespace XML3
 
     inline XMLElement& XMLElement::operator=(const char* xx)
     {
-        if (!xx)
+        if (xx == nullptr)
         {
             clear();
             return *this;
@@ -1403,7 +1561,7 @@ namespace XML3
         for (auto a : from.children)
         {
             shared_ptr<XMLElement> c = make_shared<XMLElement>(XMLElement());
-            c->operator=((XMLElement&)*a.get());
+            c->operator=(*a);
             children.push_back(c);
         }
 
@@ -1424,21 +1582,30 @@ namespace XML3
     // Gets
     inline const XMLElement& XMLElement::operator[](size_t idx) const
     {
-        if (idx >= children.size()) throw XML_ERROR::INVALIDIDX;
+        if (idx >= children.size())
+        {
+            throw XML_ERROR::INVALIDIDX;
+        }
         return *children[idx];
     }
 
     inline XMLElement& XMLElement::operator[](size_t idx)
     {
-        if (idx >= children.size()) throw XML_ERROR::INVALIDIDX;
+        if (idx >= children.size())
+        {
+            throw XML_ERROR::INVALIDIDX;
+        }
         return *children[idx];
     }
 
     inline XMLElement& XMLElement::operator[](const char* elm)
     {
-        if (elm == 0)
+        if (elm == nullptr)
         {
-            if (children.size() == 0) throw XML_ERROR::INVALIDIDX;
+            if (children.empty())
+            {
+                throw XML_ERROR::INVALIDIDX;
+            }
             return *children[0];
         }
         shared_ptr<XMLElement> e = FindElementZ(elm, true);
@@ -1448,9 +1615,12 @@ namespace XML3
     inline string XMLElement ::vd(const char* nn, const char* def)
     {
         string k;
-        if (!nn)
+        if (nn == nullptr)
         {
-            if (variables.size() == 0) return (def ? def : "");
+            if (variables.empty())
+            {
+                return (def != nullptr ? def : "");
+            }
             k = variables[0]->GetValue();
         }
         else
@@ -1458,38 +1628,56 @@ namespace XML3
             shared_ptr<XMLVariable> v = FindVariableZ(nn, true);
             k = v->GetValue();
         }
-        if (k.empty() && def) k = def;
+        if (k.empty() && (def != nullptr))
+        {
+            k = def;
+        }
         return k;
     }
 
     inline string XMLElement::vd(const char* nn, const char* def) const
     {
         string k;
-        if (!nn)
+        if (nn == nullptr)
         {
-            if (variables.size() == 0) return (def ? def : "");
+            if (variables.empty())
+            {
+                return (def != nullptr ? def : "");
+            }
             k = variables[0]->GetValue();
         }
         else
         {
             shared_ptr<XMLVariable> v = FindVariable(nn);
-            if (v) k = v->GetValue();
+            if (v)
+            {
+                k = v->GetValue();
+            }
         }
-        if (k.empty() && def) k = def;
+        if (k.empty() && (def != nullptr))
+        {
+            k = def;
+        }
         return k;
     }
 
     inline const string& XMLElement::v(size_t idx) const
     {
-        if (idx >= variables.size()) throw XML_ERROR::INVALIDIDX;
+        if (idx >= variables.size())
+        {
+            throw XML_ERROR::INVALIDIDX;
+        }
         return variables[idx]->GetValue();
     }
 
     inline const string& XMLElement::v(const char* nn)
     {
-        if (!nn)
+        if (nn == nullptr)
         {
-            if (variables.size() == 0) throw XML_ERROR::INVALIDIDX;
+            if (variables.empty())
+            {
+                throw XML_ERROR::INVALIDIDX;
+            }
             return variables[0]->GetValue();
         }
         shared_ptr<XMLVariable> v = FindVariableZ(nn, true);
@@ -1498,8 +1686,11 @@ namespace XML3
 
     inline string XMLElement::Content() const
     {
-        if (contents.empty()) return "";
-        return contents[0]->GetValue().c_str();
+        if (contents.empty())
+        {
+            return "";
+        }
+        return contents[0]->GetValue();
     }
 
     inline string XMLElement::GetContent() const { return Content(); }
@@ -1510,7 +1701,7 @@ namespace XML3
         return *v;
     }
 
-    inline unsigned long long XMLElement::GetElementParam() const { return param; }
+    inline uint64_t XMLElement::GetElementParam() const { return param; }
 
     inline const string& XMLElement::GetElementName() const { return el; }
 
@@ -1529,10 +1720,16 @@ namespace XML3
         r->GetAllChildren(ch);
         for (auto a : ch)
         {
-            if (a->id == parent) return a;
+            if (a->id == parent)
+            {
+                return a;
+            }
         }
-        if (r->id == parent) return r;
-        return 0;
+        if (r->id == parent)
+        {
+            return r;
+        }
+        return nullptr;
     }
 
     inline XMLElement* XMLElement::GetParent(XMLElement* r) const
@@ -1541,10 +1738,16 @@ namespace XML3
         r->GetAllChildren(ch);
         for (auto a : ch)
         {
-            if (a->id == parent) return a.get();
+            if (a->id == parent)
+            {
+                return a.get();
+            }
         }
-        if (r->id == parent) return r;
-        return 0;
+        if (r->id == parent)
+        {
+            return r;
+        }
+        return nullptr;
     }
 
     inline size_t XMLElement::GetElementIndex(const XMLElement& e) const
@@ -1552,38 +1755,47 @@ namespace XML3
         for (size_t i = 0; i < children.size(); i++)
         {
             auto& el = children[i];
-            if (el.get() == &e) return i;
+            if (el.get() == &e)
+            {
+                return i;
+            }
         }
-        return (size_t)-1;
+        return static_cast<size_t>(-1);
     }
 
     // Sets
     inline void XMLElement::SetElementName(const char* x)
     {
         el.clear();
-        if (x) el = x;
+        if (x != nullptr)
+        {
+            el = x;
+        }
     }
 
     inline void XMLElement::SetElementName(const wchar_t* x)
     {
         el.clear();
-        if (!x) return;
+        if (x == nullptr)
+        {
+            return;
+        }
         XMLU wh(x);
         el = string{wh.bc()};
     }
 
     inline XMLContent& XMLElement::SetContent(const char* vp)
     {
-        if (contents.size() == 0)
-            return AddContent(vp, 0);
-        else
+        if (contents.empty())
         {
-            GetContents()[0]->SetValue(vp);
-            return *GetContents()[0];
+            return AddContent(vp, 0);
         }
+
+        GetContents()[0]->SetValue(vp);
+        return *GetContents()[0];
     }
 
-    inline void XMLElement::SetElementParam(unsigned long long p) { param = p; }
+    inline void XMLElement::SetElementParam(uint64_t p) { param = p; }
 
     inline XMLVariable& XMLElement::SetValue(const char* vn, const char* vp)
     {
@@ -1606,7 +1818,10 @@ namespace XML3
 
     inline XML_ERROR XMLElement::MoveElement(size_t i, size_t y)
     {
-        if (i >= children.size() || y >= children.size()) return XML_ERROR::INVALIDARG;
+        if (i >= children.size() || y >= children.size())
+        {
+            return XML_ERROR::INVALIDARG;
+        }
         shared_ptr<XMLElement> x = children[i];
         children.erase(children.begin() + i);
         children.insert(children.begin() + y, x);
@@ -1616,14 +1831,22 @@ namespace XML3
     // Find
     inline shared_ptr<XMLElement> XMLElement::FindElementZ(const char* n, bool ForceCreate)
     {
-        if (!n) return 0;
-        for (size_t i = 0; i < children.size(); i++)
+        if (n == nullptr)
         {
-            shared_ptr<XMLElement>& cc = children[i];
-            const string& cn = cc->GetElementName();
-            if (strcmp(cn.c_str(), n) == 0) return cc;
+            return nullptr;
         }
-        if (ForceCreate == 0) return 0;
+        for (auto& cc : children)
+        {
+            const string& cn = cc->GetElementName();
+            if (strcmp(cn.c_str(), n) == 0)
+            {
+                return cc;
+            }
+        }
+        if (static_cast<int>(ForceCreate) == 0)
+        {
+            return nullptr;
+        }
         XMLElement& vv = AddElement();
         vv.SetElementName(n);
         return FindElementZ(vv.GetElementName().c_str());
@@ -1631,26 +1854,39 @@ namespace XML3
 
     inline shared_ptr<XMLVariable> XMLElement::FindVariable(const char* n) const
     {
-        if (!n) return 0;
-        for (size_t i = 0; i < variables.size(); i++)
+        if (n == nullptr)
         {
-            const shared_ptr<XMLVariable>& cc = variables[i];
-            const string& cn = cc->GetName();
-            if (strcmp(cn.c_str(), n) == 0) return cc;
+            return nullptr;
         }
-        return 0;
+        for (const auto& cc : variables)
+        {
+            const string& cn = cc->GetName();
+            if (strcmp(cn.c_str(), n) == 0)
+            {
+                return cc;
+            }
+        }
+        return nullptr;
     }
 
     inline shared_ptr<XMLVariable> XMLElement::FindVariableZ(const char* n, bool ForceCreate, const char* defv)
     {
-        if (!n) return 0;
-        for (size_t i = 0; i < variables.size(); i++)
+        if (n == nullptr)
         {
-            shared_ptr<XMLVariable>& cc = variables[i];
-            const string& cn = cc->GetName();
-            if (strcmp(cn.c_str(), n) == 0) return cc;
+            return nullptr;
         }
-        if (ForceCreate == 0) return 0;
+        for (auto& cc : variables)
+        {
+            const string& cn = cc->GetName();
+            if (strcmp(cn.c_str(), n) == 0)
+            {
+                return cc;
+            }
+        }
+        if (static_cast<int>(ForceCreate) == 0)
+        {
+            return nullptr;
+        }
         XMLVariable& vv = AddVariable(n, defv);
         return FindVariableZ(vv.GetName().c_str());
     }
@@ -1658,7 +1894,10 @@ namespace XML3
     // Inserts
     inline shared_ptr<XMLElement> XMLElement::InsertElement(size_t y, const XMLElement& x)
     {
-        if (y >= children.size()) y = children.size();
+        if (y >= children.size())
+        {
+            y = children.size();
+        }
         shared_ptr<XMLElement> xx = make_shared<XMLElement>(XMLElement(x));
         children.insert(children.begin() + y, xx);
         children[y]->parent = id;
@@ -1666,34 +1905,43 @@ namespace XML3
     }
     inline shared_ptr<XMLElement> XMLElement::InsertElement(size_t y, XMLElement&& x)
     {
-        if (y >= children.size()) y = children.size();
+        if (y >= children.size())
+        {
+            y = children.size();
+        }
         shared_ptr<XMLElement> xx = make_shared<XMLElement>(XMLElement(std::forward<XMLElement>(x)));
         children.insert(children.begin() + y, xx);
         children[y]->parent = id;
         return children[y];
     }
-    inline XMLElement& XMLElement::AddElement(const XMLElement& c) { return *InsertElement((size_t)-1, c); }
+    inline XMLElement& XMLElement::AddElement(const XMLElement& c)
+    {
+        return *InsertElement(static_cast<size_t>(-1), c);
+    }
     inline XMLElement& XMLElement::AddElement(XMLElement&& c)
     {
-        return *InsertElement((size_t)-1, std::forward<XMLElement>(c));
+        return *InsertElement(static_cast<size_t>(-1), std::forward<XMLElement>(c));
     }
     inline XMLElement& XMLElement::AddElement(const char* n)
     {
         XMLElement c{n};
-        return *InsertElement((size_t)-1, std::forward<XMLElement>(c));
+        return *InsertElement(static_cast<size_t>(-1), std::forward<XMLElement>(c));
     }
     inline void XMLElement::AddElements(const std::initializer_list<string>& s)
     {
         for (auto& a : s)
         {
             XMLElement c{a.c_str()};
-            InsertElement((size_t)-1, c);
+            InsertElement(static_cast<size_t>(-1), c);
         }
     }
 
     inline void XMLElement::SetVariables(const std::initializer_list<string>& s)
     {
-        if (s.size() % 2) return;
+        if ((s.size() % 2) != 0u)
+        {
+            return;
+        }
         for (size_t i = 0; i < s.size(); i += 2)
         {
             auto a = s.begin() + i;
@@ -1704,7 +1952,10 @@ namespace XML3
 
     inline XMLVariable& XMLElement::AddVariable(const XMLVariable& vv, size_t p)
     {
-        if (p == (size_t)-1) p = (size_t)variables.size();
+        if (p == static_cast<size_t>(-1))
+        {
+            p = static_cast<size_t>(variables.size());
+        }
         shared_ptr<XMLVariable> v = make_shared<XMLVariable>(XMLVariable(vv));
         variables.insert(variables.begin() + p, v);
         return *variables[p];
@@ -1712,7 +1963,10 @@ namespace XML3
 
     inline XMLVariable& XMLElement::AddVariable(const char* vn, const char* vv, size_t p)
     {
-        if (p == (size_t)-1) p = (size_t)variables.size();
+        if (p == static_cast<size_t>(-1))
+        {
+            p = static_cast<size_t>(variables.size());
+        }
         shared_ptr<XMLVariable> v = make_shared<XMLVariable>(XMLVariable(vn, vv));
         variables.insert(variables.begin() + p, v);
         return *variables[p];
@@ -1720,7 +1974,10 @@ namespace XML3
 
     inline XMLContent& XMLElement::AddContent(const char* pv, size_t ep, size_t p)
     {
-        if (p == (size_t)-1) p = (size_t)contents.size();
+        if (p == static_cast<size_t>(-1))
+        {
+            p = static_cast<size_t>(contents.size());
+        }
         shared_ptr<XMLContent> v = make_shared<XMLContent>(XMLContent(ep, pv));
         contents.insert(contents.begin() + p, v);
         return *contents[p];
@@ -1728,7 +1985,10 @@ namespace XML3
 
     inline XMLComment& XMLElement::AddComment(const char* pv, size_t ep, size_t p)
     {
-        if (p == (size_t)-1) p = (size_t)comments.size();
+        if (p == static_cast<size_t>(-1))
+        {
+            p = static_cast<size_t>(comments.size());
+        }
         shared_ptr<XMLComment> v = make_shared<XMLComment>(XMLComment(ep, pv));
         comments.insert(comments.begin() + p, v);
         return *comments[p];
@@ -1736,7 +1996,10 @@ namespace XML3
 
     inline XMLCData& XMLElement::AddCData(const char* pv, size_t ep, size_t p)
     {
-        if (p == (size_t)-1) p = (size_t)cdatas.size();
+        if (p == static_cast<size_t>(-1))
+        {
+            p = static_cast<size_t>(cdatas.size());
+        }
         shared_ptr<XMLCData> v = make_shared<XMLCData>(XMLCData(ep, pv));
         cdatas.insert(cdatas.begin() + p, v);
         return *cdatas[p];
@@ -1751,7 +2014,10 @@ namespace XML3
 
     inline size_t XMLElement::RemoveElement(size_t i)
     {
-        if (i >= children.size()) return (size_t)-1;
+        if (i >= children.size())
+        {
+            return static_cast<size_t>(-1);
+        }
         children.erase(children.begin() + i);
         return children.size();
     }
@@ -1769,9 +2035,12 @@ namespace XML3
         return children.size();
     }
 
-    inline shared_ptr<XMLElement> XMLElement::RemoveElementAndKeep(size_t i) throw(XML_ERROR)
+    inline shared_ptr<XMLElement> XMLElement::RemoveElementAndKeep(size_t i) noexcept(false)
     {
-        if (i >= children.size()) throw XML_ERROR::INVALIDARG;
+        if (i >= children.size())
+        {
+            throw XML_ERROR::INVALIDARG;
+        }
         auto X = children[i];
         RemoveElement(i);
         return X;
@@ -1797,14 +2066,20 @@ namespace XML3
 
     inline size_t XMLElement::RemoveVariable(size_t i)
     {
-        if (i >= variables.size()) return variables.size();
+        if (i >= variables.size())
+        {
+            return variables.size();
+        }
         variables.erase(variables.begin() + i);
         return variables.size();
     }
 
-    inline shared_ptr<XMLVariable> XMLElement::RemoveVariableAndKeep(size_t i) throw(XML_ERROR)
+    inline shared_ptr<XMLVariable> XMLElement::RemoveVariableAndKeep(size_t i) noexcept(false)
     {
-        if (i >= variables.size()) throw XML_ERROR::INVALIDARG;
+        if (i >= variables.size())
+        {
+            throw XML_ERROR::INVALIDARG;
+        }
         auto v = variables[i];
         variables.erase(variables.begin() + i);
         return v;
@@ -1812,7 +2087,10 @@ namespace XML3
 
     inline string XMLElement::EorE(const string& s, bool N)
     {
-        if (N) return s;
+        if (N)
+        {
+            return s;
+        }
         return Encode(s.c_str());
     }
 
@@ -1857,15 +2135,24 @@ namespace XML3
         auto ac = [&](vector<shared_ptr<XMLContent>>& cx, size_t B, size_t B2) {
             for (auto& a : contents)
             {
-                if (a->GetEP() == B || a->GetEP() == B2) cx.push_back(a);
+                if (a->GetEP() == B || a->GetEP() == B2)
+                {
+                    cx.push_back(a);
+                }
             }
             for (auto& a : comments)
             {
-                if (a->GetEP() == B || a->GetEP() == B2) cx.push_back(a);
+                if (a->GetEP() == B || a->GetEP() == B2)
+                {
+                    cx.push_back(a);
+                }
             }
             for (auto& a : cdatas)
             {
-                if (a->GetEP() == B || a->GetEP() == B2) cx.push_back(a);
+                if (a->GetEP() == B || a->GetEP() == B2)
+                {
+                    cx.push_back(a);
+                }
             }
         };
 
@@ -1888,7 +2175,7 @@ namespace XML3
 
         // After items
         vector<shared_ptr<XMLContent>> cx;
-        ac(cx, (size_t)-1, children.size());
+        ac(cx, static_cast<size_t>(-1), children.size());
         for (auto& n : cx)
         {
             string e = XMLContent::trim(n->Serialize());
@@ -1896,11 +2183,10 @@ namespace XML3
         }
 
         v += Format("%s</%s>\r\n", padd.c_str(), EorE(el, NoEnc).c_str());
-        return;
     }
 
     // Constructors
-    inline XML::XML() {}
+    inline XML::XML() = default;
 
     inline XML::XML(const char* file)
     {
@@ -1922,15 +2208,16 @@ namespace XML3
         Parse(mem, l);
     }
 
-    inline void XML::operator=(const char* d)
+    inline XML& XML::operator=(const char* d)
     {
         UnicodeFile = false;
         Parse(d, strlen(d));
+        return *this;
     }
 
     inline XML::XML(const XML& x) { operator=(x); }
 
-    inline void XML::operator=(const XML& x)
+    inline XML& XML::operator=(const XML& x)
     {
         UnicodeFile = x.UnicodeFile;
         fname = x.fname;
@@ -1947,11 +2234,13 @@ namespace XML3
 
         // Root
         root = x.root;
+
+        return *this;
     }
 
     inline XML::XML(XML&& x) noexcept { operator=(std::forward<XML>(x)); }
 
-    inline void XML::operator=(XML&& x) noexcept
+    inline XML& XML::operator=(XML&& x) noexcept
     {
         UnicodeFile = x.UnicodeFile;
         fname = x.fname;
@@ -1959,6 +2248,8 @@ namespace XML3
         doctype = x.doctype;
         hdrcomments = x.hdrcomments;
         root = x.GetRootElement().Mirror();
+
+        return *this;
     }
 
     // Savers
@@ -1972,16 +2263,25 @@ namespace XML3
 
     inline XML_ERROR XML::Save() const
     {
-        if (UnicodeFile) return Save(XMLU(fname.c_str()).operator const wchar_t*());
+        if (UnicodeFile)
+        {
+            return Save(XMLU(fname.c_str()).operator const wchar_t*());
+        }
         return Save(fname.c_str());
     }
 
     inline XML_ERROR XML::Save(const char* f) const
     {
-        if (!f) f = fname.c_str();
-        FILE* fp = 0;
+        if (f == nullptr)
+        {
+            f = fname.c_str();
+        }
+        FILE* fp = nullptr;
         fopen_s(&fp, f, "wb");
-        if (!fp) return XML_ERROR::SAVEFAILED;
+        if (fp == nullptr)
+        {
+            return XML_ERROR::SAVEFAILED;
+        }
         string s = Serialize();
         if (hdr.GetEncoding() == "UTF-16")
         {
@@ -1989,14 +2289,20 @@ namespace XML3
             wstring s2 = XMLU(s.c_str()).operator const wchar_t*();
             size_t sz = fwrite(s2.data(), 1, s.length() * 2, fp);
             fclose(fp);
-            if (sz != s.length() * 2) return XML_ERROR::SAVEFAILED;
+            if (sz != s.length() * 2)
+            {
+                return XML_ERROR::SAVEFAILED;
+            }
         }
         else
         {
             fwrite("\xEF\xBB\xBF", 1, 3, fp);
             size_t sz = fwrite(s.c_str(), 1, s.length(), fp);
             fclose(fp);
-            if (sz != s.length()) return XML_ERROR::SAVEFAILED;
+            if (sz != s.length())
+            {
+                return XML_ERROR::SAVEFAILED;
+            }
         }
 
         return XML_ERROR::OK;
@@ -2006,9 +2312,12 @@ namespace XML3
     {
 #ifdef _MSC_VER
         XMLU wf(fname.c_str());
-        FILE* fp = 0;
-        _wfopen_s(&fp, f ? f : wf.operator const wchar_t*(), L"wb");
-        if (!fp) return XML_ERROR::SAVEFAILED;
+        FILE* fp = nullptr;
+        _wfopen_s(&fp, f != nullptr ? f : wf.operator const wchar_t*(), L"wb");
+        if (fp == nullptr)
+        {
+            return XML_ERROR::SAVEFAILED;
+        }
         string s = Serialize();
         if (hdr.GetEncoding() == "UTF-16")
         {
@@ -2016,14 +2325,20 @@ namespace XML3
             wstring s2 = XMLU(s.c_str()).operator const wchar_t*();
             size_t sz = fwrite(s2.data(), 1, s.length() * 2, fp);
             fclose(fp);
-            if (sz != s.length() * 2) return XML_ERROR::SAVEFAILED;
+            if (sz != s.length() * 2)
+            {
+                return XML_ERROR::SAVEFAILED;
+            }
         }
         else
         {
             fwrite("\xEF\xBB\xBF", 1, 3, fp);
             size_t sz = fwrite(s.c_str(), 1, s.length(), fp);
             fclose(fp);
-            if (sz != s.length()) return XML_ERROR::SAVEFAILED;
+            if (sz != s.length())
+            {
+                return XML_ERROR::SAVEFAILED;
+            }
         }
 
         return XML_ERROR::OK;
@@ -2053,7 +2368,14 @@ namespace XML3
         {
             BXML b2;
             b2.Resize(S * 4 + 32);
-            WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)b.p(), (int)-1, b2.p(), (int)(S * 4 + 32), 0, 0);
+            WideCharToMultiByte(CP_UTF8,
+                                0,
+                                reinterpret_cast<wchar_t*>(b.p()),
+                                -1,
+                                b2.p(),
+                                static_cast<int>(S * 4 + 32),
+                                nullptr,
+                                nullptr);
             b = b2;
         }
         // UTF-8 BOM?
@@ -2070,16 +2392,19 @@ namespace XML3
 #endif
 
         // b is the text
-        const char* bb = (const char*)b.p();
+        auto bb = b.p();
         return Parse(bb, strlen(bb));
     }
 
     inline XML_PARSE XML::Load(const char* f)
     {
         Clear();
-        FILE* fp = 0;
+        FILE* fp = nullptr;
         fopen_s(&fp, f, "rb");
-        if (!fp) return XML_PARSE::OPENFAILED;
+        if (fp == nullptr)
+        {
+            return XML_PARSE::OPENFAILED;
+        }
         return ParseFile(fp);
     }
 
@@ -2087,9 +2412,12 @@ namespace XML3
     {
 #ifdef _MSC_VER
         Clear();
-        FILE* fp = 0;
+        FILE* fp = nullptr;
         _wfopen_s(&fp, f, L"rb");
-        if (!fp) return XML_PARSE::OPENFAILED;
+        if (fp == nullptr)
+        {
+            return XML_PARSE::OPENFAILED;
+        }
         return ParseFile(fp);
 #else
         return XML_PARSE::OPENFAILED;
@@ -2123,7 +2451,7 @@ namespace XML3
         int InHeader = 0;
         string t1;
         t1.reserve(100000);
-        XMLElement* l = 0;
+        XMLElement* l = nullptr;
         int OutsideElementLine = 1;
         int InVar = 0; // 1 got =, 2 got ",
         int InDocType = 0;
@@ -2143,13 +2471,18 @@ namespace XML3
 
             if (pe == PARSEELEMENT::STARTHDR)
             {
-                if (InHeader > 0) return XML_PARSE::HDRERROR;
+                if (InHeader > 0)
+                {
+                    return XML_PARSE::HDRERROR;
+                }
                 InHeader = 1;
             }
             if (pe == PARSEELEMENT::STARTEL)
             {
-                if (!l)
+                if (l == nullptr)
+                {
                     l = &root;
+                }
                 else
                 {
                     //					XMLElement ne;
@@ -2160,7 +2493,7 @@ namespace XML3
             }
             if (pe == PARSEELEMENT::ENDEL)
             {
-                if (l)
+                if (l != nullptr)
                 {
                     l = l->GetParent(&root);
                 }
@@ -2168,48 +2501,76 @@ namespace XML3
 
             if (pe == PARSEELEMENT::ENDHDR)
             {
-                if (InHeader != 1) return XML_PARSE::HDRERROR;
+                if (InHeader != 1)
+                {
+                    return XML_PARSE::HDRERROR;
+                }
                 InHeader = 2;
             }
             if (pe == PARSEELEMENT::STARTDOCTYPE)
             {
-                if (InDocType > 0) return XML_PARSE::HDRERROR;
+                if (InDocType > 0)
+                {
+                    return XML_PARSE::HDRERROR;
+                }
                 InDocType = 1;
             }
             if (pe == PARSEELEMENT::ENDDOCTYPE)
             {
-                if (InDocType != 1) return XML_PARSE::HDRERROR;
+                if (InDocType != 1)
+                {
+                    return XML_PARSE::HDRERROR;
+                }
                 InDocType = 2;
                 doctype.SetValue(Decode(t1.c_str()).c_str());
                 t1.clear();
             }
             if (pe == PARSEELEMENT::STARTCOMMENT)
             {
-                if (InComment != 0) return XML_PARSE::COMMENTERROR;
+                if (InComment != 0)
+                {
+                    return XML_PARSE::COMMENTERROR;
+                }
                 InComment = 1;
             }
             if (pe == PARSEELEMENT::STARTCD)
             {
-                if (InCData != 0 || !l) return XML_PARSE::COMMENTERROR;
+                if (InCData != 0 || (l == nullptr))
+                {
+                    return XML_PARSE::COMMENTERROR;
+                }
                 InCData = 1;
             }
 
             if (pe == PARSEELEMENT::ENDCOMMENT)
             {
-                if (InComment != 1) return XML_PARSE::COMMENTERROR;
+                if (InComment != 1)
+                {
+                    return XML_PARSE::COMMENTERROR;
+                }
                 InComment = 0;
-                if (l) comm.SetEP(l->GetChildren().size());
+                if (l != nullptr)
+                {
+                    comm.SetEP(l->GetChildren().size());
+                }
                 comm.SetValue(Decode(t1.c_str()).c_str());
                 t1.clear();
-                if (l)
+                if (l != nullptr)
+                {
                     l->AddComment(comm.GetValue().c_str(), comm.GetEP());
+                }
                 else
+                {
                     hdrcomments.push_back(make_shared<XMLComment>(XMLComment(comm)));
+                }
             }
 
             if (pe == PARSEELEMENT::ENDCD)
             {
-                if (InCData != 1 || !l) return XML_PARSE::COMMENTERROR;
+                if (InCData != 1 || (l == nullptr))
+                {
+                    return XML_PARSE::COMMENTERROR;
+                }
                 InCData = 0;
                 cd.SetEP(l->GetChildren().size());
                 cd.SetValue(Decode(t1.c_str()).c_str());
@@ -2219,7 +2580,10 @@ namespace XML3
             // Header var
             if (pe == PARSEELEMENT::STARTVAR && InHeader == 1)
             {
-                if (InVar != 0) return XML_PARSE::VARERROR;
+                if (InVar != 0)
+                {
+                    return XML_PARSE::VARERROR;
+                }
                 cv.Clear();
                 InVar = 1;
                 cv.SetName(Decode(t1.c_str()).c_str());
@@ -2227,33 +2591,50 @@ namespace XML3
             }
             if (pe == PARSEELEMENT::ENDVAR && InHeader == 1)
             {
-                if (InVar != 2) return XML_PARSE::VARERROR;
+                if (InVar != 2)
+                {
+                    return XML_PARSE::VARERROR;
+                }
                 InVar = 0;
                 cv.SetValue(Decode(t1.c_str()).c_str());
                 t1.clear();
                 if (cv.GetName() == "version")
+                {
                     hdr.GetVersion() = cv;
+                }
                 else if (cv.GetName() == "encoding")
+                {
                     hdr.GetEncoding() = cv;
+                }
                 else if (cv.GetName() == "standalone")
+                {
                     hdr.GetStandalone() = cv;
+                }
                 else
+                {
                     return e; // ignore it... return XML_PARSE::HDRERROR;
+                }
                 cv.Clear();
             }
 
             // Element var
-            if (pe == PARSEELEMENT::STARTVAR && l)
+            if (pe == PARSEELEMENT::STARTVAR && (l != nullptr))
             {
-                if (InVar != 0) return XML_PARSE::VARERROR;
+                if (InVar != 0)
+                {
+                    return XML_PARSE::VARERROR;
+                }
                 cv.Clear();
                 InVar = 1;
                 cv.SetName(Decode(t1.c_str()).c_str());
                 t1.clear();
             }
-            if (pe == PARSEELEMENT::ENDVAR && l)
+            if (pe == PARSEELEMENT::ENDVAR && (l != nullptr))
             {
-                if (InVar != 2) return XML_PARSE::VARERROR;
+                if (InVar != 2)
+                {
+                    return XML_PARSE::VARERROR;
+                }
                 InVar = 0;
                 cv.SetValue(Decode(t1.c_str()).c_str());
                 t1.clear();
@@ -2269,13 +2650,16 @@ namespace XML3
         {
             const char* mm = m + i;
             bool IsSpace = false;
-            if (m[i] == ' ' || m[i] == '\t' || m[i] == '\r' || m[i] == '\n') IsSpace = true;
+            if (m[i] == ' ' || m[i] == '\t' || m[i] == '\r' || m[i] == '\n')
+            {
+                IsSpace = true;
+            }
 
             // Opti CData
-            if (InCData)
+            if (InCData != 0)
             {
                 const char* s1 = strstr(mm, "]]>");
-                if (!s1)
+                if (s1 == nullptr)
                 {
                     e = XML_PARSE::COMMENTERROR;
                     break;
@@ -2283,15 +2667,18 @@ namespace XML3
                 t1.assign(mm, s1 - mm);
                 i += t1.length();
                 e = ParseFunc(PARSEELEMENT::ENDCD);
-                if (e != XML_PARSE::OK) break;
+                if (e != XML_PARSE::OK)
+                {
+                    break;
+                }
                 i += 3;
                 continue;
             }
             // Opti Comment
-            if (InComment)
+            if (InComment != 0)
             {
                 const char* s1 = strstr(mm, "-->");
-                if (!s1)
+                if (s1 == nullptr)
                 {
                     e = XML_PARSE::COMMENTERROR;
                     break;
@@ -2299,13 +2686,16 @@ namespace XML3
                 t1.assign(mm, s1 - mm);
                 i += t1.length();
                 e = ParseFunc(PARSEELEMENT::ENDCOMMENT);
-                if (e != XML_PARSE::OK) break;
+                if (e != XML_PARSE::OK)
+                {
+                    break;
+                }
                 i += 3;
                 continue;
             }
 
             // El name?
-            if (l && PendingElName && IsSpace && !t1.empty())
+            if ((l != nullptr) && PendingElName && IsSpace && !t1.empty())
             {
                 l->SetElementName(Trim(t1.c_str()).c_str());
                 PendingElName = false;
@@ -2316,41 +2706,59 @@ namespace XML3
 
             // Header test
             bool CanHeader = false;
-            if (!InComment && !InCData && l == 0) CanHeader = true;
+            if ((InComment == 0) && (InCData == 0) && l == nullptr)
+            {
+                CanHeader = true;
+            }
             if (CanHeader)
             {
                 if (_strnicmp(mm, "<?xml ", 6) == 0)
                 {
                     e = ParseFunc(PARSEELEMENT::STARTHDR);
-                    if (e != XML_PARSE::OK) break;
+                    if (e != XML_PARSE::OK)
+                    {
+                        break;
+                    }
                     i += 6;
                     continue;
                 }
                 if (_strnicmp(mm, "<?xml?>", 7) == 0)
                 {
                     e = ParseFunc(PARSEELEMENT::STARTHDR);
-                    if (e != XML_PARSE::OK) break;
+                    if (e != XML_PARSE::OK)
+                    {
+                        break;
+                    }
                     i += 5;
                     continue;
                 }
                 if (_strnicmp(mm, "?>", 2) == 0)
                 {
                     e = ParseFunc(PARSEELEMENT::ENDHDR);
-                    if (e != XML_PARSE::OK) break;
+                    if (e != XML_PARSE::OK)
+                    {
+                        break;
+                    }
                     i += 2;
                     continue;
                 }
                 if (_strnicmp(mm, "<!DOCTYPE ", 10) == 0)
                 {
                     e = ParseFunc(PARSEELEMENT::STARTDOCTYPE);
-                    if (e != XML_PARSE::OK) break;
+                    if (e != XML_PARSE::OK)
+                    {
+                        break;
+                    }
                     i += 10;
                     continue;
                 }
                 if (_strnicmp(mm, ">", 1) == 0 && InDocType == 1)
                 {
                     e = ParseFunc(PARSEELEMENT::ENDDOCTYPE);
-                    if (e != XML_PARSE::OK) break;
+                    if (e != XML_PARSE::OK)
+                    {
+                        break;
+                    }
                     i += 1;
                     continue;
                 }
@@ -2358,21 +2766,33 @@ namespace XML3
 
             // Comment Tests
             bool CanComment = true;
-            if (l && OutsideElementLine == 0) CanComment = false;
-            if (InCData) CanComment = false;
+            if ((l != nullptr) && OutsideElementLine == 0)
+            {
+                CanComment = false;
+            }
+            if (InCData != 0)
+            {
+                CanComment = false;
+            }
             if (CanComment)
             {
-                if (_strnicmp(mm, "<!--", 4) == 0 && !InComment)
+                if (_strnicmp(mm, "<!--", 4) == 0 && (InComment == 0))
                 {
                     e = ParseFunc(PARSEELEMENT::STARTCOMMENT);
-                    if (e != XML_PARSE::OK) break;
+                    if (e != XML_PARSE::OK)
+                    {
+                        break;
+                    }
                     i += 4;
                     continue;
                 }
-                if (_strnicmp(mm, "-->", 3) == 0 && InComment)
+                if (_strnicmp(mm, "-->", 3) == 0 && (InComment != 0))
                 {
                     e = ParseFunc(PARSEELEMENT::ENDCOMMENT);
-                    if (e != XML_PARSE::OK) break;
+                    if (e != XML_PARSE::OK)
+                    {
+                        break;
+                    }
                     i += 3;
                     continue;
                 }
@@ -2380,20 +2800,29 @@ namespace XML3
 
             // CData Tests
             bool CanCData = true;
-            if (l && OutsideElementLine == 0) CanCData = false;
+            if ((l != nullptr) && OutsideElementLine == 0)
+            {
+                CanCData = false;
+            }
             if (CanCData)
             {
-                if (_strnicmp(mm, "<![CDATA[", 9) == 0 && !InCData)
+                if (_strnicmp(mm, "<![CDATA[", 9) == 0 && (InCData == 0))
                 {
                     e = ParseFunc(PARSEELEMENT::STARTCD);
-                    if (e != XML_PARSE::OK) break;
+                    if (e != XML_PARSE::OK)
+                    {
+                        break;
+                    }
                     i += 9;
                     continue;
                 }
-                if (_strnicmp(mm, "]]>", 3) == 0 && InCData)
+                if (_strnicmp(mm, "]]>", 3) == 0 && (InCData != 0))
                 {
                     e = ParseFunc(PARSEELEMENT::ENDCD);
-                    if (e != XML_PARSE::OK) break;
+                    if (e != XML_PARSE::OK)
+                    {
+                        break;
+                    }
                     i += 3;
                     continue;
                 }
@@ -2401,17 +2830,24 @@ namespace XML3
 
             // Variable Tests
             bool CanVariable = false;
-            if (!InComment && !InCData)
+            if ((InComment == 0) && (InCData == 0))
             {
                 if (InHeader == 1)
+                {
                     CanVariable = true;
-                else if (l && OutsideElementLine == 0)
+                }
+                else if ((l != nullptr) && OutsideElementLine == 0)
+                {
                     CanVariable = true;
+                }
             }
             if (_strnicmp(mm, "=", 1) == 0 && CanVariable && InVar != 2)
             {
                 e = ParseFunc(PARSEELEMENT::STARTVAR);
-                if (e != XML_PARSE::OK) break;
+                if (e != XML_PARSE::OK)
+                {
+                    break;
+                }
                 i += 1;
                 continue;
             }
@@ -2425,27 +2861,36 @@ namespace XML3
             if (_strnicmp(mm, "\"", 1) == 0 && CanVariable && InVar == 2)
             {
                 e = ParseFunc(PARSEELEMENT::ENDVAR);
-                if (e != XML_PARSE::OK) break;
+                if (e != XML_PARSE::OK)
+                {
+                    break;
+                }
                 i += 1;
                 continue;
             }
 
             bool CanElement = false;
-            if (!InComment && !InCData && !InVar && InDocType != 1) CanElement = true;
+            if ((InComment == 0) && (InCData == 0) && (InVar == 0) && InDocType != 1)
+            {
+                CanElement = true;
+            }
 
             if (CanElement)
             {
-                if (_strnicmp(mm, "</", 2) == 0 && l && OutsideElementLine == 1)
+                if (_strnicmp(mm, "</", 2) == 0 && (l != nullptr) && OutsideElementLine == 1)
                 {
                     // Content...
-                    if (l && !t1.empty())
+                    if ((l != nullptr) && !t1.empty())
                     {
-                        l->AddContent(t1.c_str(), (size_t)-1);
+                        l->AddContent(t1.c_str(), static_cast<size_t>(-1));
                         t1.clear();
                     }
 
                     e = ParseFunc(PARSEELEMENT::ENDEL);
-                    if (e != XML_PARSE::OK) break;
+                    if (e != XML_PARSE::OK)
+                    {
+                        break;
+                    }
                     t1.clear();
                     i += 2;
                     PendingElNameClosing = true;
@@ -2455,14 +2900,17 @@ namespace XML3
                 if (_strnicmp(mm, "<", 1) == 0 && OutsideElementLine == 1)
                 {
                     // Content...
-                    if (l && !t1.empty())
+                    if ((l != nullptr) && !t1.empty())
                     {
                         l->AddContent(t1.c_str(), l->GetChildren().size());
                         t1.clear();
                     }
 
                     e = ParseFunc(PARSEELEMENT::STARTEL);
-                    if (e != XML_PARSE::OK) break;
+                    if (e != XML_PARSE::OK)
+                    {
+                        break;
+                    }
                     OutsideElementLine = 0;
                     i += 1;
                     continue;
@@ -2471,7 +2919,7 @@ namespace XML3
                 if (_strnicmp(mm, "/>", 2) == 0)
                 {
                     // El name?
-                    if (l && PendingElName && !t1.empty())
+                    if ((l != nullptr) && PendingElName && !t1.empty())
                     {
                         l->SetElementName(Trim(t1.c_str()).c_str());
                         PendingElName = false;
@@ -2479,13 +2927,16 @@ namespace XML3
 
                     e = ParseFunc(PARSEELEMENT::ENDEL);
 
-                    if (e != XML_PARSE::OK) break;
+                    if (e != XML_PARSE::OK)
+                    {
+                        break;
+                    }
                     OutsideElementLine = 1;
                     i += 2;
                     continue;
                 }
 
-                if (_strnicmp(mm, ">", 1) == 0 && (OutsideElementLine == 0 || PendingElNameClosing) && l)
+                if (_strnicmp(mm, ">", 1) == 0 && (OutsideElementLine == 0 || PendingElNameClosing) && (l != nullptr))
                 {
                     // El name?
                     if (PendingElName)
@@ -2513,11 +2964,13 @@ namespace XML3
                 }
             }
 
-            if (IsSpace && t1.empty() && !InComment && !InCData)
+            if (IsSpace && t1.empty() && (InComment == 0) && (InCData == 0))
             {
             }
             else
+            {
                 t1 += m[i];
+            }
 
             i++;
         }
@@ -2567,7 +3020,7 @@ namespace XML3
 
         v += hdr.Serialize();
         v += "\r\n";
-        if (doctype.GetValue().length())
+        if (doctype.GetValue().length() != 0u)
         {
             v += doctype.Serialize();
             v += "\r\n";
